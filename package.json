@@ -1,0 +1,17 @@
+{
+  "name": "ada-07-notes-app",
+  "version": "1.0.0",
+  "description": "Sistema de administración de notas (Módulo de Creación Inmutable)",
+  "main": "index.html",
+  "scripts": {
+    "test": "node --test tests/notes.test.mjs"
+  },
+  "keywords": [
+    "notes",
+    "vanilla-js",
+    "accessibility",
+    "clean-code"
+  ],
+  "author": "José Antonio Polanco Oxté",
+  "license": "MIT"
+}
