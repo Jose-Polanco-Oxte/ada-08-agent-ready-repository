@@ -14,7 +14,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (models) {
   'use strict';
 
-  const { NoteModel } = models;
+  const { NoteModel, VALID_CATEGORIES } = models;
   const STORAGE_KEY = 'ada07_notes_v1';
   const STORAGE_SCHEMA_VERSION = 1;
 
@@ -40,6 +40,16 @@
 
     static fail(error) {
       return new StorageResult(false, undefined, error);
+    }
+
+    /**
+     * Facilitates iteration over data when data is an iterable (e.g. Array).
+     */
+    [Symbol.iterator]() {
+      if (this.data && typeof this.data[Symbol.iterator] === 'function') {
+        return this.data[Symbol.iterator]();
+      }
+      return [][Symbol.iterator]();
     }
   }
 
@@ -171,6 +181,51 @@
         this._memoryFallback.unshift(note);
         return StorageResult.fail('No se pudo guardar en almacenamiento persistente; se conservó en memoria de la sesión.');
       }
+    }
+
+    /**
+     * Filters stored notes matching the specified category in chronological descending order.
+     * Guarantees entity immutability and non-destructive retrieval (FR-04, AC-04.1 - AC-04.4).
+     * @param {string} category - Valid category name.
+     * @returns {StorageResult<Array<import('./models').NoteEntity>>}
+     */
+    filterByCategory(category) {
+      if (typeof category !== 'string') {
+        return StorageResult.fail('La categoría debe ser una cadena de texto válida.');
+      }
+
+      const trimmedCategory = category.trim();
+      const validCategories = VALID_CATEGORIES || [
+        'General',
+        'Trabajo',
+        'Estudio',
+        'Personal',
+        'Ideas',
+        'Urgente'
+      ];
+
+      if (!trimmedCategory || !validCategories.includes(trimmedCategory)) {
+        return StorageResult.fail(
+          `Categoría inválida: "${category}". Las categorías permitidas son: ${validCategories.join(', ')}.`
+        );
+      }
+
+      const allNotesResult = this.getAllNotes();
+      if (!allNotesResult.success || !Array.isArray(allNotesResult.data)) {
+        return StorageResult.fail(
+          allNotesResult.error || 'Error al recuperar las notas para filtrado.'
+        );
+      }
+
+      // Filter notes matching category and ensure entity immutability
+      const matchingNotes = allNotesResult.data
+        .filter((note) => note.category === trimmedCategory)
+        .map((note) => (Object.isFrozen(note) ? note : Object.freeze({ ...note })));
+
+      // Preserve chronological descending order (newest first)
+      matchingNotes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      return StorageResult.ok(matchingNotes);
     }
   }
 

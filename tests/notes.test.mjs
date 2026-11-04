@@ -158,3 +158,196 @@ describe('Persistence: NoteRepository In-Memory Fallback', () => {
     assert.ok(result.error);
   });
 });
+
+describe('Query & Filtering: NoteRepository Category Filter (FR-04)', () => {
+  it('should retrieve notes matching valid category in descending chronological order (AC-04.1)', () => {
+    const repo = new NoteRepository();
+
+    const note1 = NoteModel.create({
+      title: 'Nota 1 Trabajo',
+      category: 'Trabajo',
+      content: 'Primer entregable de la empresa.'
+    });
+
+    const note2 = NoteModel.create({
+      title: 'Nota 2 Personal',
+      category: 'Personal',
+      content: 'Comprar provisiones para el fin de semana.'
+    });
+
+    const note3 = NoteModel.create({
+      title: 'Nota 3 Trabajo',
+      category: 'Trabajo',
+      content: 'Segundo entregable de la empresa.'
+    });
+
+    repo.saveNote(note1);
+    repo.saveNote(note2);
+    repo.saveNote(note3);
+
+    const result = repo.filterByCategory('Trabajo');
+    assert.equal(result.success, true);
+    assert.equal(Array.isArray(result.data), true);
+    assert.equal(result.data.length, 2);
+
+    // note3 was saved after note1, so note3 must appear first (chronological descending)
+    assert.equal(result.data[0].id, note3.id);
+    assert.equal(result.data[1].id, note1.id);
+    assert.equal(result.data[0].category, 'Trabajo');
+    assert.equal(result.data[1].category, 'Trabajo');
+
+    // Verify trimming tolerance for valid category inputs
+    const resultWithSpaces = repo.filterByCategory('  Trabajo  ');
+    assert.equal(resultWithSpaces.success, true);
+    assert.equal(resultWithSpaces.data.length, 2);
+  });
+
+  it('should return empty array when valid category has no matching notes (AC-04.2)', () => {
+    const repo = new NoteRepository();
+
+    const note = NoteModel.create({
+      title: 'Nota de Ideas',
+      category: 'Ideas',
+      content: 'Nueva idea innovadora para el proyecto.'
+    });
+    repo.saveNote(note);
+
+    const result = repo.filterByCategory('Urgente');
+    assert.equal(result.success, true);
+    assert.equal(Array.isArray(result.data), true);
+    assert.equal(result.data.length, 0);
+    assert.deepEqual(result.data, []);
+  });
+
+  it('should reject invalid or non-string category inputs with descriptive error (AC-04.3)', () => {
+    const repo = new NoteRepository();
+
+    const invalidInputs = [
+      null,
+      undefined,
+      123,
+      true,
+      false,
+      {},
+      [],
+      () => {},
+      Symbol('cat')
+    ];
+
+    for (const input of invalidInputs) {
+      // @ts-ignore
+      const result = repo.filterByCategory(input);
+      assert.equal(result.success, false, `Expected rejection for input: ${String(input)}`);
+      assert.ok(result.error, `Expected error message for input: ${String(input)}`);
+      assert.match(
+        result.error,
+        /cadena de texto/i,
+        `Expected descriptive error for non-string input: ${String(input)}`
+      );
+    }
+
+    // Empty or whitespace-only strings
+    const emptyResult = repo.filterByCategory('');
+    assert.equal(emptyResult.success, false);
+    assert.ok(emptyResult.error);
+
+    const whitespaceResult = repo.filterByCategory('    ');
+    assert.equal(whitespaceResult.success, false);
+    assert.ok(whitespaceResult.error);
+
+    // Unrecognized / non-allowed category strings
+    const unknownResult = repo.filterByCategory('CategoriaInexistente');
+    assert.equal(unknownResult.success, false);
+    assert.ok(unknownResult.error);
+    assert.match(unknownResult.error, /Categoría inválida/i);
+    assert.match(unknownResult.error, /General|Trabajo|Estudio/i);
+  });
+
+  it('should guarantee entity immutability and storage invariant preservation (AC-04.4)', () => {
+    const repo = new NoteRepository();
+
+    const note = NoteModel.create({
+      title: 'Nota de Estudio',
+      category: 'Estudio',
+      content: 'Revisar apuntes de arquitectura de software.'
+    });
+    repo.saveNote(note);
+
+    const result = repo.filterByCategory('Estudio');
+    assert.equal(result.success, true);
+    const retrievedNote = result.data[0];
+
+    // 1. Entities remain frozen
+    assert.equal(Object.isFrozen(retrievedNote), true);
+    assert.throws(() => {
+      // @ts-ignore
+      retrievedNote.title = 'Título modificado';
+    }, TypeError);
+    assert.throws(() => {
+      // @ts-ignore
+      retrievedNote.category = 'Urgente';
+    }, TypeError);
+
+    // 2. Modifying returned collection does not mutate stored collection
+    result.data.pop();
+    assert.equal(result.data.length, 0);
+
+    const freshResult = repo.filterByCategory('Estudio');
+    assert.equal(freshResult.data.length, 1);
+    assert.equal(freshResult.data[0].id, note.id);
+
+    // 3. Storage invariant: notes count in getAllNotes remains unchanged
+    const allNotes = repo.getAllNotes();
+    assert.equal(allNotes.data.length, 1);
+    assert.equal(allNotes.data[0].id, note.id);
+  });
+
+  it('should filter correctly when localStorage persistence is available', () => {
+    const store = new Map();
+    // @ts-ignore
+    globalThis.window = {
+      localStorage: {
+        getItem: (key) => store.get(key) || null,
+        setItem: (key, val) => store.set(key, String(val)),
+        removeItem: (key) => store.delete(key),
+        clear: () => store.clear()
+      }
+    };
+
+    try {
+      const repo = new NoteRepository();
+      assert.equal(repo.isUsingFallback(), false);
+
+      const note1 = NoteModel.create({
+        title: 'Nota Persistente 1',
+        category: 'Personal',
+        content: 'Contenido persistente uno.'
+      });
+      const note2 = NoteModel.create({
+        title: 'Nota Persistente 2',
+        category: 'Personal',
+        content: 'Contenido persistente dos.'
+      });
+      const note3 = NoteModel.create({
+        title: 'Nota Trabajo Persistente',
+        category: 'Trabajo',
+        content: 'Contenido trabajo persistente.'
+      });
+
+      repo.saveNote(note1);
+      repo.saveNote(note2);
+      repo.saveNote(note3);
+
+      const filtered = repo.filterByCategory('Personal');
+      assert.equal(filtered.success, true);
+      assert.equal(filtered.data.length, 2);
+      assert.equal(filtered.data[0].id, note2.id);
+      assert.equal(filtered.data[1].id, note1.id);
+      assert.equal(Object.isFrozen(filtered.data[0]), true);
+      assert.equal(Object.isFrozen(filtered.data[1]), true);
+    } finally {
+      // @ts-ignore
+      delete globalThis.window;
+    }
+  });
+});
