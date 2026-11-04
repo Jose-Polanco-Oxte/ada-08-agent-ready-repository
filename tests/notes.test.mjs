@@ -158,3 +158,149 @@ describe('Persistence: NoteRepository In-Memory Fallback', () => {
     assert.ok(result.error);
   });
 });
+
+describe('Query & Filtering: NoteRepository Category Filtering (FR-04)', () => {
+  it('AC-04.1: should retrieve notes matching a valid category in chronological descending order', async () => {
+    const repo = new NoteRepository();
+
+    const note1 = NoteModel.create({
+      title: 'Nota Trabajo 1',
+      category: 'Trabajo',
+      content: 'Contenido de la primera nota de trabajo'
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const note2 = NoteModel.create({
+      title: 'Nota Personal',
+      category: 'Personal',
+      content: 'Contenido de nota personal que no debe filtrarse'
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const note3 = NoteModel.create({
+      title: 'Nota Trabajo 2',
+      category: 'Trabajo',
+      content: 'Contenido de la segunda nota de trabajo (más reciente)'
+    });
+
+    repo.saveNote(note1);
+    repo.saveNote(note2);
+    repo.saveNote(note3);
+
+    const result = repo.filterByCategory('Trabajo');
+
+    assert.equal(result.success, true);
+    assert.equal(result.error, undefined);
+    assert.equal(Array.isArray(result.data), true);
+    assert.equal(result.data.length, 2);
+
+    // Every item must have category === 'Trabajo'
+    for (const note of result.data) {
+      assert.equal(note.category, 'Trabajo');
+    }
+
+    // Chronological descending order (newest first: note3 then note1)
+    assert.equal(result.data[0].id, note3.id);
+    assert.equal(result.data[1].id, note1.id);
+    assert.ok(new Date(result.data[0].createdAt).getTime() >= new Date(result.data[1].createdAt).getTime());
+  });
+
+  it('AC-04.2: should return an empty array without error when a valid category has no matching notes', () => {
+    const repo = new NoteRepository();
+
+    // 1. In an empty repository
+    const emptyResult = repo.filterByCategory('Estudio');
+    assert.equal(emptyResult.success, true);
+    assert.deepEqual(emptyResult.data, []);
+    assert.equal(emptyResult.data.length, 0);
+    assert.equal(emptyResult.error, undefined);
+
+    // 2. In a repository with notes in other categories
+    const note = NoteModel.create({
+      title: 'Nota de Ideas',
+      category: 'Ideas',
+      content: 'Una idea cualquiera para prueba'
+    });
+    repo.saveNote(note);
+
+    const noMatchResult = repo.filterByCategory('Urgente');
+    assert.equal(noMatchResult.success, true);
+    assert.deepEqual(noMatchResult.data, []);
+    assert.equal(noMatchResult.data.length, 0);
+    assert.equal(noMatchResult.error, undefined);
+  });
+
+  it('AC-04.3: should reject null, undefined, non-string, empty, or unknown categories with descriptive error', () => {
+    const repo = new NoteRepository();
+
+    const invalidInputs = [
+      null,
+      undefined,
+      42,
+      true,
+      false,
+      {},
+      [],
+      '',
+      '   ',
+      'Inexistente',
+      'trabajo', // Case sensitivity check
+      'General ' // Trailing whitespace
+    ];
+
+    for (const input of invalidInputs) {
+      // @ts-ignore
+      const result = repo.filterByCategory(input);
+      assert.equal(result.success, false, `Expected failure for input: ${String(input)}`);
+      assert.equal(result.data, undefined);
+      assert.equal(typeof result.error, 'string');
+      assert.ok(result.error.length > 0, `Expected non-empty error string for input: ${String(input)}`);
+    }
+
+    // Also test without arguments
+    // @ts-ignore
+    const noArgResult = repo.filterByCategory();
+    assert.equal(noArgResult.success, false);
+    assert.equal(typeof noArgResult.error, 'string');
+    assert.ok(noArgResult.error.length > 0);
+  });
+
+  it('AC-04.4: should preserve entity immutability and ensure modifying the returned array does not mutate repository state', () => {
+    const repo = new NoteRepository();
+
+    const note = NoteModel.create({
+      title: 'Nota para Inmutabilidad',
+      category: 'General',
+      content: 'Probando integridad e inmutabilidad'
+    });
+    repo.saveNote(note);
+
+    const filterResult = repo.filterByCategory('General');
+    assert.equal(filterResult.success, true);
+    assert.equal(filterResult.data.length, 1);
+
+    const retrievedNote = filterResult.data[0];
+
+    // Entities must remain frozen
+    assert.equal(Object.isFrozen(retrievedNote), true);
+    assert.throws(() => {
+      // @ts-ignore
+      retrievedNote.title = 'Título Modificado';
+    }, TypeError);
+
+    // Modifying the returned array must not alter repository internal state
+    filterResult.data.push({ fake: 'note' });
+    filterResult.data.pop();
+    filterResult.data.pop();
+    assert.equal(filterResult.data.length, 0);
+
+    // Subsequent retrieval must be intact
+    const freshResult = repo.filterByCategory('General');
+    assert.equal(freshResult.success, true);
+    assert.equal(freshResult.data.length, 1);
+    assert.equal(freshResult.data[0].id, note.id);
+    assert.equal(freshResult.data[0].title, 'Nota para Inmutabilidad');
+  });
+});

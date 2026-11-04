@@ -14,7 +14,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (models) {
   'use strict';
 
-  const { NoteModel } = models;
+  const { NoteModel, VALID_CATEGORIES } = models;
   const STORAGE_KEY = 'ada07_notes_v1';
   const STORAGE_SCHEMA_VERSION = 1;
 
@@ -125,6 +125,37 @@
         this._isFallbackActive = true;
         return StorageResult.ok([...this._memoryFallback]);
       }
+    }
+
+    /**
+     * Filters saved notes by category.
+     * Preserves chronological descending order (newest first) and entity immutability.
+     * @param {string} category
+     * @returns {StorageResult<Array<import('./models').NoteEntity>>}
+     */
+    filterByCategory(category) {
+      if (typeof category !== 'string' || category.trim().length === 0) {
+        return StorageResult.fail('La categoría debe ser una cadena de texto no vacía.');
+      }
+
+      if (!VALID_CATEGORIES.includes(category)) {
+        return StorageResult.fail(
+          `Categoría no válida: '${category}'. Categorías permitidas: ${VALID_CATEGORIES.join(', ')}.`
+        );
+      }
+
+      const allNotesResult = this.getAllNotes();
+      if (!allNotesResult.success) {
+        return allNotesResult;
+      }
+
+      const allNotes = allNotesResult.data || [];
+      const filtered = allNotes
+        .filter((note) => note.category === category)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .map((note) => (Object.isFrozen(note) ? note : Object.freeze({ ...note })));
+
+      return StorageResult.ok(filtered);
     }
 
     /**

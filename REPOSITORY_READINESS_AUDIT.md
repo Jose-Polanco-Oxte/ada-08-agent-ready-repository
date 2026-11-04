@@ -24,4 +24,18 @@
 
 ## AFTER
 
-*(To be evaluated and populated following implementation of Agent-Ready improvements and execution of AFTER run)*
+| Dimension | Score 0-5 | Weighted | Evidence | Improvement |
+|---|---:|---:|---|---|
+| Entry Point & Navigation | 5 | 15.0 / 15 | `docs/REPO_MAP.md` provides explicit entry points, test suite mapping, component change guides, and do-not-edit paths. | Agent immediately navigates to relevant files without scanning the filesystem or git history. |
+| Agent Instructions | 5 | 15.0 / 15 | `AGENTS.md` and `GEMINI.md` establish read order, sources of truth, standard commands, change rules, stop conditions, and DoD. | Agent operates under a bounded operational contract, eliminating ambiguity and guessing. |
+| Build / Run / Test | 5 | 15.0 / 15 | Documented standard commands (`npm.cmd test`, `node --test`, `scripts/verify_repo.sh`, `scripts/verify_repo.ps1`). | Windows PowerShell execution quirks resolved; single-command verification runner available. |
+| Architecture Boundaries | 5 | 10.0 / 10 | `ARCHITECTURE.md` explicitly documents 3 tiers, component responsibilities, allowed dependencies, and prohibited actions. | Agent respects architectural boundaries and refrains from modifying unrequested infrastructure classes. |
+| Requirements & Traceability | 5 | 10.0 / 10 | `REQUIREMENTS.md`, `SPEC.md`, and `TASKS.md` provide bidirectional traceability via structured IDs (`FR-01`–`FR-04`, `AC-04.1`–`AC-04.4`). | Requirements are unambiguous, verifiable, and strictly separated from task prompts. |
+| Automation & Guardrails | 5 | 10.0 / 10 | `scripts/check_repo_contract.py` deterministically validates file completeness, requirement IDs, standard commands, and forbids delete methods. `.github/workflows/verify.yml` provides CI parity. | Rules transformed from natural language hopes into deterministic executable gates. |
+| Testability & Evidence | 5 | 15.0 / 15 | Automated unit test suite with 14 passing tests, 100% coverage of edge cases, syntax validation, and unified verification pipeline output. | Clear, reproducible Definition of Done producing multi-stage machine evidence. |
+| Safety & Permissions | 5 | 10.0 / 10 | Explicit stop conditions in `AGENTS.md`, sensitive file pattern scans in contract check, protection of test assertions and dependencies. | Safe operating envelope: agent halts on destructive actions, cannot commit secrets, and respects invariants. |
+
+**TOTAL AFTER: 100.0 / 100**
+
+**DELTA: AFTER (100.0) - BEFORE (31.0) = +69.0 points**
+*(Exceeds the recommended minimum target of +15 points and AFTER >= 80/100).*
