@@ -1,10 +1,108 @@
-# Respuestas a las Preguntas de Reflexión — ADA-07
+# Respuestas a las Preguntas de Reflexión — ADA-08 & ADA-07
 
 **Estudiante:** José Antonio Polanco Oxté  
 **Asignatura:** Ingeniería de Software asistida por IA · UADY  
-**Fecha:** 2026-10-08  
+**Institución:** Universidad Autónoma de Yucatán  
 
 ---
+
+# ADA-08: Agent-Ready Repository
+
+### 1. ¿Cuál fue el principal obstáculo para el agente en la ejecución BEFORE?
+El principal obstáculo fue la **ausencia total de un contrato operativo y de fuentes canónicas de verdad** (`AGENTS.md`, `REQUIREMENTS.md`, `SPEC.md`, `docs/REPO_MAP.md`). Cuando el prompt estándar le indicó al agente implementar el cambio descrito en `TASK_UNDER_TEST.md` (el cual referenciaba `FR-04` y `AC-04`), el agente entró en un bucle de sobre-exploración y confusión: ejecutó 15 llamadas de herramientas buscando archivos inexistentes (`*REQUIREMENTS*`, `*SPEC*`), rastreando el historial de commits y ramas con `git log`, y sufrió una falla inmediata de ejecución al intentar correr `npm test` debido a la política de ejecución de scripts de Windows PowerShell (`PSSecurityException`). Al no tener límites explícitos, también introdujo modificaciones fuera de alcance en la clase de persistencia.
+
+### 2. ¿Qué información tuvo que inferir el agente que un desarrollador experimentado ya conocía?
+Un desarrollador experimentado del proyecto conocía conocimiento tácito y tribal crítico que no estaba escrito:
+- **Restricción del entorno Windows:** Que en PowerShell no se puede ejecutar `npm test` de forma directa si los scripts no firmados están deshabilitados; debe invocarse `npm.cmd test` o `node --test tests/notes.test.mjs`.
+- **Invariante arquitectónica de no-eliminación:** Que el sistema fue concebido como un registro inmutable de auditoría donde está terminantemente prohibido exponer métodos como `delete`, `remove`, `clear` o `destroy`.
+- **Fronteras de componentes e invariantes de clases:** Que la clase `StorageResult` es una estructura de transporte de datos sellada del repositorio y no debía mutarse ni añadírsele utilidades arbitrarias (como `[Symbol.iterator]`).
+- **Mapeo de arquitectura:** Dónde residía la lógica de validación (`js/models.js`), la persistencia (`js/storage.js`) y cómo se relacionaban entre sí.
+
+### 3. ¿Qué mejora produjo el mayor impacto y por qué?
+La combinación de **`AGENTS.md` como contrato operativo junto con `docs/REPO_MAP.md` y las especificaciones estructuradas (`REQUIREMENTS.md`/`SPEC.md`)**. Esta mejora eliminó de raíz la incertidumbre del agente:
+- Redujo el esfuerzo exploratorio en más del 73% (de 15 llamadas de herramientas ciegas a 4 lecturas metódicas).
+- Le indicó exactamente el orden de lectura prioritario (*Read First*).
+- Estableció de antemano los comandos exactos y funcionales para el entorno.
+- Impuso reglas de cambio estrictas que impidieron modificaciones fuera de alcance.
+
+### 4. ¿Qué información pertenece en AGENTS.md y qué información NO debería vivir ahí?
+- **Pertenece en `AGENTS.md`:** 
+  1. El orden de lectura obligatorio (*Read First*).
+  2. La declaración de fuentes únicas de verdad (*Sources of Truth*).
+  3. Un mapa de directorios de alto nivel.
+  4. Los comandos estándar oficiales de ejecución, prueba, lint y verificación.
+  5. Las reglas de cambio (*Change Rules*: qué componentes son editables y cuáles están protegidos).
+  6. Las condiciones de parada (*Stop Conditions*: cuándo detenerse y consultar a un humano).
+  7. La Definición de Terminado (*Definition of Done*).
+- **NO debe vivir en `AGENTS.md`:**
+  - Los requerimientos funcionales detallados del negocio (pertenecen a `REQUIREMENTS.md`).
+  - Los criterios de aceptación minuciosos y casos de prueba (pertenecen a `SPEC.md`).
+  - Las decisiones de diseño arquitectónico profundo y diagramas de flujo (pertenecen a `ARCHITECTURE.md`).
+  - Duplicar esa información en `AGENTS.md` crearía redundancia y el riesgo latente de divergencia entre documentos.
+
+### 5. ¿Qué regla convertiste en software/hook/script en lugar de dejarla como instrucción?
+La **invariante arquitectónica de no-eliminación y la integridad de contratos del repositorio**. 
+En lugar de dejar la regla como una recomendación en lenguaje natural ("*por favor ten cuidado y no agregues métodos de borrado*"), se codificó el script determinista `scripts/check_repo_contract.py`. Este script:
+1. Inspecciona estáticamente el archivo `js/storage.js` para asegurar que ningún método o identificador contenga palabras prohibidas (`deleteNote`, `removeNote`, `clearNotes`, `destroyNote`, `delete(`, `remove(`).
+2. Verifica la existencia de todos los archivos normativos obligatorios.
+3. Valida que `SPEC.md` contenga referencias cruzadas explícitas a los IDs de requerimientos (`FR-01`–`FR-04`, `AC-04`).
+4. Comprueba que `AGENTS.md` incluya los comandos estándar y que no se hayan introducido credenciales ni archivos `.env`.
+
+### 6. ¿Qué diferencia observaste entre 'más contexto' y 'mejor contexto'?
+- **"Más contexto":** Consiste en sobrecargar la ventana del modelo con archivos masivos, explicaciones redundantes o volcados de código irrelevante. En el BEFORE, la ausencia de límites hizo que el agente leyera todo el árbol de archivos, revisara skills externas y terminara agregando código innecesario (`[Symbol.iterator]` en `StorageResult`).
+- **"Mejor contexto":** Consiste en información estructurada, jerárquica y con bajo consumo de tokens bajo el principio de *Progressive Disclosure*. En el AFTER, el agente leyó exactamente lo que necesitaba en el orden correcto, comprendió los contratos en segundos, no tuvo dudas de qué implementar y no tocó nada fuera de su tarea.
+
+### 7. ¿Qué riesgo aparece cuando CLAUDE.md/GEMINI.md/copilot instructions duplican información del proyecto?
+Aparece el **problema de la verdad dividida (*Split-Brain Context*) y la desincronización**. Si los requerimientos o criterios se copian dentro de `GEMINI.md` o `CLAUDE.md`, en el momento en que un requisito de negocio cambie en `SPEC.md` y un desarrollador olvide actualizar los archivos específicos de cada herramienta, diferentes modelos o asistentes actuarán bajo premisas contradictorias. La solución correcta es que `GEMINI.md` y similares actúen únicamente como adaptadores delgados que ordenan al asistente leer `AGENTS.md`.
+
+### 8. ¿Qué checks comparten ahora el agente, el desarrollador humano y CI?
+Comparten exactamente el mismo contrato unificado de verificación:
+- **Local (Bash/Linux/macOS):** `./scripts/verify_repo.sh`
+- **Local (Windows PowerShell):** `./scripts/verify_repo.ps1`
+- **Pipeline de CI (GitHub Actions):** `.github/workflows/verify.yml` (que ejecuta `./scripts/verify_repo.sh`).
+
+Todos ellos ejecutan idénticamente:
+1. Pruebas unitarias automatizadas (`node --test tests/notes.test.mjs`).
+2. Chequeo estático de sintaxis y linting (`node --check js/models.js js/storage.js js/app.js`).
+3. Validación determinista de contratos del repositorio e invariantes arquitectónicas (`python scripts/check_repo_contract.py`).
+
+### 9. ¿Qué parte del proceso sigue requiriendo decisión humana?
+Siguen requiriendo juicio humano:
+- La concepción, negociación y priorización de nuevos requerimientos de negocio.
+- La evaluación de las condiciones de parada (*Stop Conditions*): si un requerimiento solicitado colisiona con una invariante arquitectónica o requiere modificar una biblioteca central, el agente debe detenerse y pedir autorización.
+- La aprobación final del Pull Request y la autorización de despliegue a entornos productivos.
+
+### 10. ¿Qué evidencia demuestra que el AFTER es realmente mejor?
+La evidencia es cuantitativa, verificable y reproducible:
+- **Puntuación de Repository Readiness:** Aumentó de **31.0/100** a **100.0/100** (Delta de **+69.0 puntos**).
+- **Sobrecarga de navegación:** Se redujo en un 73% (de 15 llamadas de herramientas desordenadas a 4 lecturas guiadas).
+- **Comandos fallidos:** Pasó de 1 fallo de ejecución de script a 0 fallos.
+- **Alcance controlado:** Pasó de 1 modificación indebida fuera de alcance a 0 modificaciones indebidas.
+- **Resultado de verificación unificada:** Concluyó con éxito rotundo en las 3 fases emitiendo `VERIFY_REPO: PASS` y pasando los 14 tests unitarios.
+
+### 11. ¿Qué mejora realizada para el agente también beneficia a un desarrollador que entra por primera vez al proyecto?
+Todas las mejoras benefician directamente al nuevo desarrollador:
+- `docs/REPO_MAP.md` le permite conocer en 2 minutos la arquitectura del código y dónde se encuentra cada módulo.
+- `scripts/verify_repo.ps1` y `scripts/verify_repo.sh` le permiten validar sus cambios localmente con un solo comando sin tener que aprender de memoria comandos complejos ni tropezar con las restricciones de PowerShell.
+- `REQUIREMENTS.md` y `SPEC.md` le proporcionan una fuente transparente para saber qué hace el sistema y cómo se verifican sus funciones.
+
+### 12. ¿Qué variable no controlada podría afectar tu comparación BEFORE/AFTER?
+Las variables no controladas potenciales son la **estocasticidad inherente al modelo de lenguaje (temperatura > 0)** y el **mecanismo de context-caching del proveedor**. Para mitigar estas amenazas a la validez:
+- Se utilizó idéntico modelo (`Gemini 3.8 Flash High`).
+- Se utilizó el prompt textual exacto exigido por la rúbrica oficial.
+- Se mantuvieron idénticas herramientas y permisos.
+- La ejecución AFTER partió de una sesión completamente limpia e independiente en la rama `ada-08`.
+
+### 13. ¿Qué elementos de este ADA conservarás como base para tu proyecto final?
+Se conservará la arquitectura completa de repositorio agent-ready:
+1. `AGENTS.md` como estándar de interacción y gobernanza operativa.
+2. La arquitectura de documentación desacoplada (`REQUIREMENTS.md` -> `SPEC.md` -> `ARCHITECTURE.md` -> `TASKS.md` -> `REPO_MAP.md`).
+3. El script de verificación unificado ejecutable tanto en local como en GitHub Actions (`verify_repo.sh` / `verify.yml`).
+4. Los guardrails deterministas en Python (`check_repo_contract.py`) para evitar que se rompan contratos arquitectónicos de forma accidental.
+
+---
+
+# ADA-07: Respuestas de Reflexión (Skill Design)
 
 ### 1. ¿Qué parte del workflow pertenece al juicio del LLM y cuál debe ser determinista?
 - **Juicio del LLM:** El análisis semántico del código, la interpretación de si un cambio viola la intención de los requisitos en `REQUIREMENTS.md` y `SPEC.md`, la asignación de severidad a los hallazgos y la redacción de explicaciones claras para el revisor humano.
@@ -48,11 +146,3 @@ La skill profesional de Addy Osmani está orientada a heurísticas avanzadas de 
 1. **Auditoría de código fuente:** Leer todo el archivo `SKILL.md` y sus referencias buscando instrucciones maliciosas o vectores de prompt injection.
 2. **Revisión de scripts y comandos:** Verificar si incluye ejecutables locales y auditar qué comandos del sistema operativo intenta correr.
 3. **Control de permisos y secretos:** Confirmar que no solicite variables de entorno con tokens, llaves SSH o credenciales empresariales.
-4. **Pinning de versión:** Clonar la skill fijando un commit o tag hash inmutable para evitar que actualizaciones automáticas del repositorio de origen cambien silenciosamente el comportamiento en el pipeline.
-
-### 14. Después de estudiar la Skill profesional, ¿qué cambiarías en una versión 2 de tu Skill y cómo evaluarías que realmente mejoró?
-- **Cambios para v2:**
-  1. Agregar la técnica de **prueba de mutación** en el paso de revisión de tests (invertir una condición en el código para verificar que los tests fallen de verdad).
-  2. Incorporar el chequeo de **cálculo ansioso vs perezoso** (*lazy evaluation*) en bucles dentro de `references/review_checklist.md`.
-  3. Adoptar el esquema de etiquetas de severidad con `Nit:` y `Consider:`.
-- **Evaluación de mejora:** Mediría la tasa de hallazgos relevantes en nuevos PRs sintéticos (creando un caso de prueba donde una prueba unitaria sea un falso positivo trivial que no falle al mutar el código), confirmando que la v2 detecte la debilidad del test mientras que la v1 la hubiera pasado por alto.

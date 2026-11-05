@@ -1,16 +1,19 @@
 {
-  "name": "ada-07-notes-app",
+  "name": "ada-08-agent-ready-repository",
   "version": "1.0.0",
-  "description": "Sistema de administración de notas (Módulo de Creación Inmutable)",
+  "description": "Sistema de administración de notas - Agent-Ready Repository",
   "main": "index.html",
   "scripts": {
-    "test": "node --test tests/notes.test.mjs"
+    "test": "node --test tests/notes.test.mjs",
+    "lint": "node --check js/models.js js/storage.js js/app.js",
+    "verify": "python scripts/check_repo_contract.py && node --check js/models.js js/storage.js js/app.js && node --test tests/notes.test.mjs"
   },
   "keywords": [
     "notes",
     "vanilla-js",
     "accessibility",
-    "clean-code"
+    "clean-code",
+    "agent-ready"
   ],
   "author": "José Antonio Polanco Oxté",
   "license": "MIT"

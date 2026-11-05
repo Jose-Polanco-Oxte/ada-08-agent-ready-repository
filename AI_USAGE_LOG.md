@@ -1,13 +1,37 @@
-# Bitácora de Uso de IA (AI Usage Log) — ADA-07
+# Bitácora de Uso de IA (AI Usage Log) — ADA-08 & ADA-07
 
-**Actividad:** ADA-07 — Build an Agent Skill (Diseñar una Skill para un proceso profesional de Ingeniería de Software)  
 **Estudiante:** José Antonio Polanco Oxté  
 **Asignatura:** Ingeniería de Software asistida por IA · UADY  
-**Fecha:** 2026-10-08  
+**Institución:** Universidad Autónoma de Yucatán  
 
 ---
 
-## Registro de Interacciones Significativas
+# ADA-08: Agent-Ready Repository
+
+**Fecha:** 2026-11-04  
+**Objetivo:** Auditar el repositorio, identificar fricción/riesgos desde la perspectiva de un coding agent, implementar mejoras de contexto, navegación, validación y seguridad, y medir el impacto cuantitativo y cualitativo BEFORE/AFTER.
+
+## Registro de Interacciones Significativas (ADA-08)
+
+| # | Dimensión / Etapa | Solicitud / Actividad Realizada | Propuesta / Comportamiento de la IA | Decisión y Validación Humana (Estudiante) | Impacto Real en el Repositorio |
+| :-: | :--- | :--- | :--- | :--- | :--- |
+| **1** | **Auditoría inicial (BEFORE)** | Ejecución no guiada sobre el baseline con prompt estándar para implementar `TASK_UNDER_TEST.md` (`CR-01`). | El agente ejecutó 15 llamadas a herramientas, incluyendo búsquedas ciegas de archivos (`*REQUIREMENTS*`, `*SPEC*`), rastreo forense en `git log` entre ramas, y falló al intentar correr `npm test` por la directiva de PowerShell. | **Validé y clasifiqué la fricción real:** confirmé que el agente cayó en sobre-exploración porque el baseline carecía de `AGENTS.md`, mapa del repositorio y especificaciones formales. Registré la calificación base en 31.0/100 en `REPOSITORY_READINESS_AUDIT.md`. | Se documentó fielmente la deuda de contexto inicial y el costo de operar con conocimiento tribal en `results/before-agent-run.md`. |
+| **2** | **Diseño de AGENTS.md** | Definir el contrato operativo `AGENTS.md` para estandarizar el comportamiento del agente. | La IA sugirió copiar íntegramente las especificaciones de negocio, tablas de constraints de `js/models.js` y requerimientos dentro de `AGENTS.md`. | **Rechacé la duplicación de verdades:** siguiendo el principio de diseño del ADA-08, mantuve `AGENTS.md` estrictamente como contrato operativo (orden de lectura, fuentes de verdad, comandos oficiales, reglas de cambio y Definition of Done), delegando los requerimientos a `REQUIREMENTS.md` y `SPEC.md`. | Se evitó la divergencia de fuentes de verdad y se mantuvo `AGENTS.md` conciso y accionable. |
+| **3** | **Guardrail ejecutable** | Diseñar un mecanismo automatizado para salvaguardar la invariante arquitectónica crítica de "no eliminación". | La IA propuso añadir una instrucción en lenguaje natural en el prompt del sistema diciendo *"Por favor nunca agregues métodos delete o remove"*. | **Convertí la regla en software determinista:** creé el script `scripts/check_repo_contract.py` que inspecciona estáticamente el AST/código de `js/storage.js` para bloquear cualquier método prohibido (`delete`, `remove`, `destroy`, `clear`) y validar la presencia de archivos y IDs de requisitos con códigos de salida (exit code 1). | La invariante arquitectónica dejó de ser una petición benevolente y se convirtió en una restricción observable y bloqueante. |
+| **4** | **Discoverability / Implicit Knowledge** | Detección de conocimiento tácito tras el fallo de ejecución de `npm test` en Windows PowerShell. | El agente descubrió tras error que PowerShell bloqueaba `npm.ps1` por la política `PSSecurityException`, obligándolo a probar `npm.cmd` o `node --test`. | **Hice explícito y reproducible el conocimiento tácito:** creé `docs/REPO_MAP.md`, documenté los comandos multiplataforma en `AGENTS.md`, actualicé los scripts de `package.json` y creé el runner dual `scripts/verify_repo.sh` / `scripts/verify_repo.ps1`. | El agente en AFTER no falló ningún comando y ejecutó la verificación unificada a la primera sin tanteos. |
+| **5** | **CI y Contrato Compartido** | Diseñar el pipeline de Integración Continua en `.github/workflows/verify.yml`. | La IA propuso recrear pasos independientes de testing y linters dentro del YAML de GitHub Actions con comandos distintos a los locales. | **Exigí el principio de "Un solo contrato de verificación":** configuré GitHub Actions para que invoque exactamente el mismo script ejecutable `./scripts/verify_repo.sh` que corre el desarrollador humano y el coding agent localmente. | Paridad absoluta entre el entorno local del agente, el desarrollador humano y el pipeline de CI. |
+| **6** | **Ejecución AFTER** | Ejecutar la misma tarea `CR-01` bajo las mismas condiciones de modelo en el repositorio preparado. | El agente leyó ordenadamente `AGENTS.md`, consultó `SPEC.md` y `REPO_MAP.md`, no hizo búsquedas ciegas, no modificó archivos fuera de alcance (`StorageResult`), e invocó la suite de verificación completa. | **Aprobé la implementación:** verifiqué que el agente satisfizo `AC-04.1` a `AC-04.4` con 14 tests unitarios pasando, pasando la sintaxis y el contrato determinista, elevando la puntuación a 100/100 (+69 puntos). | Se demostró empíricamente la reducción drástica de incertidumbre y la eliminación del cambio fuera de alcance. |
+| **7** | **Evaluación Final y Human Gate** | Determinar los límites de autonomía del agente y qué decisiones deben permanecer en manos humanas. | La IA sugirió que con los guardrails y el CI, el agente podría hacer commits directos a `master` y auto-aprobarse para producción. | **Establecí Stop Conditions estrictas:** definí en `AGENTS.md` que ante cualquier conflicto entre requisitos, necesidad de alterar fronteras arquitectónicas, operaciones destructivas o cambios en contratos de persistencia, el agente está obligado a detenerse y solicitar decisión humana. | Se preserva la gobernanza del software y la responsabilidad humana en decisiones de alto impacto. |
+
+---
+
+# ADA-07: Build an Agent Skill
+
+**Fecha:** 2026-10-08  
+**Estudiante:** José Antonio Polanco Oxté  
+**Asignatura:** Ingeniería de Software asistida por IA · UADY  
+
+## Registro de Interacciones Significativas (ADA-07)
 
 | # | Etapa | Prompt / Solicitud Realizada | Aporte / Propuesta de la IA | Decisión y Validación Humana (Estudiante) | Impacto Real en la Skill |
 | :-: | :--- | :--- | :--- | :--- | :--- |
@@ -20,7 +44,7 @@
 
 ---
 
-## Reflexiones del Estudiante
+## Reflexiones Generales
 
 1. **Procedimiento vs Herramienta:** Una Agent Skill no es una herramienta externa ni una API; es el "know-how" empaquetado que le enseña al agente cómo razonar y operar sobre un flujo de ingeniería específico.
 2. **Progressive Disclosure:** Separar el contenido en `references/` y `scripts/` evita saturar la ventana de contexto del agente. La skill solo lee el checklist o la guía de severidad cuando realmente entra a la fase de inspección.

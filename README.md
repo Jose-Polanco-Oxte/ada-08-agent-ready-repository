@@ -1,9 +1,17 @@
-# ADA-07: Sistema de Administración de Notas (Módulo de Creación Inmutable)
+# ADA-08: Sistema de Administración de Notas (Agent-Ready Repository)
 
 **Asignatura:** Ingeniería de Software asistida por IA  
 **Institución:** Universidad Autónoma de Yucatán (UADY)  
 **Estudiante:** José Antonio Polanco Oxté  
-**Enfoque:** Creación y Consulta de Notas con Inmutabilidad (Sin Eliminación)
+**Enfoque:** Repositorio preparado para agentes de codificación autónomos (Agent-Ready Repository, Auditoría BEFORE/AFTER, Guardrails deterministas, Verificación unificada)
+
+---
+
+## 0. Guía Rápida para Agentes y Desarrolladores (Agent-Ready)
+- **Contrato Operativo:** Consulta [`AGENTS.md`](./AGENTS.md) para el orden de lectura, reglas de cambio y Definition of Done.
+- **Mapa de Navegación:** Consulta [`docs/REPO_MAP.md`](./docs/REPO_MAP.md) para ubicar rápidamente puntos de entrada, tests y guías por capa.
+- **Especificaciones y Requisitos:** Consulta [`REQUIREMENTS.md`](./REQUIREMENTS.md) y [`SPEC.md`](./SPEC.md).
+- **Verificación Unificada:** Ejecuta `./scripts/verify_repo.sh` (Linux/CI) o `powershell -ExecutionPolicy Bypass -File ./scripts/verify_repo.ps1` (Windows).
 
 ---
 
